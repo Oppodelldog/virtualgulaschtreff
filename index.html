@@ -9,6 +9,7 @@
             margin: 0;
             padding: 0;
         }
+
         body {
             overflow: hidden;
             width: 100%;
@@ -33,6 +34,7 @@
             padding: 4px;
             background-color: rgba(255, 255, 255, 0.5);
             color: white;
+            z-index: 1;
         }
 
         .player-controls-toggle {
@@ -57,11 +59,12 @@
             color: #ffffffd1;
         }
 
-        .player-controls-toggle-video{
+        .player-controls-toggle-video {
             position: absolute;
             top: 0;
             right: 0;
         }
+
         .player-controls-toggle-audio {
             position: absolute;
             top: 0;
@@ -98,7 +101,7 @@
         }
 
         getName(id) {
-            return this.players[id];
+            return this.players[id].name;
         }
 
         removePlayer(id) {
@@ -356,7 +359,9 @@
                 .catch(error => {
                     console.error('Error accessing media devices.', error);
                 });
-
+            let rename = () => askForUsername('Choose a different name', players.getName(myPlayerID))
+            playerLabel.addEventListener('click', rename);
+            playerLabel.addEventListener('touchend', rename);
         } else {
             players.setMediaStream(ID, new MediaStream());
             videoElement.src = "/images/loading-gulasch.mp4";
@@ -413,6 +418,16 @@
         }
     }
 
+    function askForUsername(message, originalName) {
+        let userInputNickName = "";
+        while (userInputNickName === "") {
+            userInputNickName = prompt(message, originalName);
+        }
+
+        const answer = {Type: 'MY_NAME_IS', 'Payload': {'Name': userInputNickName}};
+        ws.send(JSON.stringify(answer));
+    }
+
     function startGame() {
         ws = new WebSocket(wsUrl);
         var messageBuffer = "";
@@ -442,13 +457,7 @@
                 switch (data.Type) {
                     case "WHATS_YOUR_NAME":
                         myPlayerID = data.Payload.ID;
-                        let userInputNickName = "";
-                        while (userInputNickName === "") {
-                            userInputNickName = prompt(data.Payload.Message, getRandomName());
-                        }
-
-                        const answer = {Type: 'MY_NAME_IS', 'Payload': {'Name': userInputNickName}};
-                        ws.send(JSON.stringify(answer));
+                        askForUsername(data.Payload.Message, getRandomName());
                         break;
 
                     case "STATE_UPDATE":
