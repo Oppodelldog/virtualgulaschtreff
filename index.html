@@ -3,15 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <title>Virtual Gulaschtreff</title>
+    <link rel="stylesheet" type="text/css" href="icofont.min.css">
     <style type="text/css">
-        body{
-            overflow: hidden;
-            width:100%;
+        * {
+            margin: 0;
+            padding: 0;
         }
-        #players{
-            display:flex;
+        body {
+            overflow: hidden;
+            width: 100%;
+        }
+
+        #players {
+            display: flex;
             flex-wrap: wrap;
         }
+
+        .player {
+            position: relative;
+        }
+
+        .player-video {
+        }
+
+        .player-name {
+            position: absolute;
+            top: 0;
+            left: 0;
+            padding: 4px;
+            background-color: rgba(255, 255, 255, 0.5);
+            color: white;
+        }
+
+        .player-controls-toggle {
+            width: 36px;
+            height: 36px;
+            background: #fafafa69;
+            display: block;
+            border: 1px solid #7e7d7d;
+            text-align: center;
+        }
+
+        .player-controls-toggle-checkbox {
+            display: none;
+        }
+
+        .player-controls-toggle-button {
+            font-size: 22pt;
+            color: #ffffff42;
+        }
+
+        .player-controls-toggle-checkbox:checked + .player-controls-toggle-button {
+            color: #ffffffd1;
+        }
+
+        .player-controls-toggle-video{
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+        .player-controls-toggle-audio {
+            position: absolute;
+            top: 0;
+            right: 38px;
+        }
+
     </style>
 </head>
 <body>
@@ -243,17 +299,43 @@
         }
     }
 
+    function createToggleButton(ID, buttonClass, iconClass, changeCallback) {
+        let checkboxID = `toggle_${buttonClass}_` + ID;
+
+        let toggleVideoDiv = document.createElement("label");
+        toggleVideoDiv.className = `player-controls-toggle player-controls-toggle-${buttonClass}`
+        toggleVideoDiv.for = checkboxID;
+
+        let toggleVideo = document.createElement("input");
+        toggleVideo.type = "checkbox"
+        toggleVideo.checked = true;
+        toggleVideo.value = "1"
+        toggleVideo.id = checkboxID;
+        toggleVideo.addEventListener('change', (e) => changeCallback(e))
+        toggleVideo.className = "player-controls-toggle-checkbox";
+        toggleVideoDiv.append(toggleVideo);
+
+        let toggleIcon = document.createElement("i");
+        toggleIcon.className = `${iconClass} player-controls-toggle-button player-controls-toggle-button-${buttonClass}`;
+        toggleVideoDiv.append(toggleIcon);
+
+        return toggleVideoDiv;
+    }
+
     function newPlayer(ID) {
         let playerElement = document.createElement("div");
         playerElement.id = "player_" + ID;
+        playerElement.className = "player";
 
         let playerLabel = document.createElement("div");
         playerLabel.id = "player_label_" + ID;
         playerLabel.innerText = players.getName(ID);
+        playerLabel.className = "player-name"
         playerElement.append(playerLabel)
 
         let videoElement = document.createElement("video");
         videoElement.id = "video_" + ID;
+        videoElement.className = "player-video";
         videoElement.autoplay = "autoplay";
         videoElement.width = "300";
         videoElement.style = "background-color: black;";
@@ -279,24 +361,11 @@
             players.setMediaStream(ID, new MediaStream());
             videoElement.src = "/images/loading-gulasch.mp4";
         }
+        let toggleVideoButton = createToggleButton(ID, "video", "icofont-video-cam", (e) => e.target.checked ? players.enableVideo(ID) : players.disableVideo(ID));
+        playerElement.append(toggleVideoButton);
 
-        let toggleVideo = document.createElement("input");
-        toggleVideo.type = "checkbox"
-        toggleVideo.checked = "checked"
-        toggleVideo.value = "1"
-        toggleVideo.id = "toggle_video_" + ID;
-        toggleVideo.class = "player-media-controls--video-toggle";
-        toggleVideo.addEventListener('change', (e) => e.target.checked ? players.enableVideo(ID) : players.disableVideo(ID))
-        playerElement.append(toggleVideo);
-
-        let toggleAudio = document.createElement("input");
-        toggleAudio.type = "checkbox"
-        toggleAudio.checked = "checked"
-        toggleAudio.value = "1"
-        toggleAudio.id = "toggle_audio_" + ID;
-        toggleVideo.class = "player-media-controls--audio-toggle";
-        toggleAudio.addEventListener('change', (e) => e.target.checked ? players.enableAudio(ID) : players.disableAudio(ID))
-        playerElement.append(toggleAudio);
+        let toggleAudioButton = createToggleButton(ID, "audio", "icofont-mic", (e) => e.target.checked ? players.enableAudio(ID) : players.disableAudio(ID));
+        playerElement.append(toggleAudioButton);
 
         document.getElementById("players").append(playerElement);
     }
