@@ -1,0 +1,59 @@
+  [[command]]
+        name = "npm"
+        uniqueNames=true
+        isInteractive   = true
+        requireEnvVars  = true
+        removeContainer = true
+        impersonate     = true
+        workDir         = "${PWD}"
+        entryPoint = "npm"
+        image = "node:12.4.0"
+        envvars         = [
+          "PWD=${PWD}",
+          "HOME=${HOME}"
+        ]
+        volumes         = [
+            "${PWD}:${PWD}",
+            "${HOME}:${HOME}"
+        ]
+        ports = [
+            "8080:8080",
+            "4200:4200",
+            "4100:4100"
+        ]
+
+  [[command]]
+        name = "node"
+        uniqueNames=true
+        isInteractive   = true
+        requireEnvVars  = true
+        removeContainer = true
+        workDir         = "${PWD}"
+        entryPoint = "bash"
+        image = "node:12.4.0"
+        envvars         = [
+          "PWD=${PWD}",
+          "HOME=${HOME}"
+        ]
+        volumes         = [
+            "${PWD}:${PWD}",
+            "${HOME}:${HOME}"
+        ]
+
+  [[command]]
+      name            = "nginx"
+      image           = "nginx:latest"
+      isTemplate      = true
+      removeContainer = true
+      isDetached      = true
+      volumes=[
+        "${PWD}:${PWD}",
+        "${HOME}:${HOME}"
+      ]
+
+   [[command]]
+     name                 = "virtualgulaschtreff"
+     template             = "nginx"
+     mergeTemplateArrays  = ["Volumes"]
+     volumes              = ["${PWD}:/usr/share/nginx/html"]
+     ports                = ["8001:80"]
