@@ -13,6 +13,7 @@
     class Player {
         name = 'unnamed';
         webRtcConnection = null;
+        mediaStream = null;
 
         dispose() {
             console.log("dispose")
@@ -76,14 +77,21 @@
         get(id) {
             return this.players[id];
         }
+
+        getMediaStream(id) {
+            return this.get(id).mediaStream;
+        }
+
+        setMediaStream(newPlayerID, mediaStream) {
+            this.get(newPlayerID).mediaStream = mediaStream;
+        }
     }
 
     const names = ["Sioux", "Martguerita", "Janel", "Ruthy", "Arlene", "Pauly", "Flo", "Scarlett", "Gypsy", "Adel", "Edeline", "Willi", "Arlyne", "Starlin", "Tania", "Hildegaard", "Aveline", "Appolonia", "Linet", "Arabel", "Anjela", "Tyne", "Caresse", "Kylynn", "Lorenza", "Rhianon", "Nonna", "Joni", "Rachelle", "Katusha", "Sharia", "Catherine", "Kerri", "Aili", "Andra", "Margy", "Cindi", "Fanchette", "Dara", "Brittaney", "Corie", "Gilbertine"];
-    let players = new Players();
-    let myMediaStream = null;
-    let playerMediaStreams = [];
-    let myPlayerID = null;
+
     const wsUrl = 'wss://' + location.host + '/ws/gt';
+    let players = new Players();
+    let myPlayerID = null;
     let ws = null;
 
     window.onerror = errorHandler;
@@ -122,10 +130,12 @@
             }
         });
         peerConnection.addEventListener('track', async (event) => {
-            playerMediaStreams[calledPlayerID].addTrack(event.track, playerMediaStreams[calledPlayerID]);
-            document.getElementById("video_" + calledPlayerID).srcObject = playerMediaStreams[calledPlayerID];
+            let playerMediaStream = players.getMediaStream(calledPlayerID);
+            playerMediaStream.addTrack(event.track, playerMediaStream);
+            document.getElementById("video_" + calledPlayerID).srcObject = playerMediaStream;
         });
 
+        let myMediaStream = players.getMediaStream(myPlayerID);
         myMediaStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, myMediaStream);
         });
@@ -169,12 +179,14 @@
                 console.log("Peers connected!");
             }
         });
+        let myMediaStream = players.getMediaStream(myPlayerID);
         myMediaStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, myMediaStream);
         });
         peerConnection.addEventListener('track', async (event) => {
-            playerMediaStreams[callingPlayerID].addTrack(event.track, playerMediaStreams[callingPlayerID]);
-            document.getElementById("video_" + callingPlayerID).srcObject = playerMediaStreams[callingPlayerID];
+            let playerMediaStream = players.getMediaStream(callingPlayerID);
+            playerMediaStream.addTrack(event.track, playerMediaStream);
+            document.getElementById("video_" + callingPlayerID).srcObject = playerMediaStream;
         });
         peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await peerConnection.createAnswer();
@@ -217,10 +229,11 @@
 
 
         if (newPlayerID === myPlayerID) {
-            videoElement.srcObject = myMediaStream;
+            setupMyMedia();
+            videoElement.srcObject = players.getMediaStream(myPlayerID);
             videoElement.muted = true;
         } else {
-            playerMediaStreams[newPlayerID] = new MediaStream();
+            players.setMediaStream(newPlayerID, new MediaStream());
             videoElement.src = "/images/loading-gulasch.mp4";
         }
     }
@@ -267,15 +280,14 @@
     }
 
 
-    function setupMedia() {
+    function setupMyMedia() {
         const constraints = {
             'video': true,
             'audio': true
         };
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
-                myMediaStream = stream;
-                startGame();
+                players.setMediaStream(myPlayerID, stream);
             })
             .catch(error => {
                 console.error('Error accessing media devices.', error);
@@ -356,8 +368,8 @@
             };
         };
     }
+    startGame();
 
-    setupMedia();
 </script>
 </body>
 </html>
