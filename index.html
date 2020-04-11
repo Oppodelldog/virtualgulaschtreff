@@ -3,6 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>Virtual Gulaschtreff</title>
+    <style type="text/css">
+        body{
+            overflow: hidden;
+            width:100%;
+        }
+        #players{
+            display:flex;
+            flex-wrap: wrap;
+        }
+    </style>
 </head>
 <body>
 <div id="players">
@@ -233,20 +243,23 @@
         }
     }
 
-    function newPlayer(newPlayerID) {
+    function newPlayer(ID) {
         let playerElement = document.createElement("div");
-        playerElement.id = "player_" + newPlayerID;
-        playerElement.innerText = players.getName(newPlayerID);
-        document.getElementById("players").append(playerElement);
+        playerElement.id = "player_" + ID;
+
+        let playerLabel = document.createElement("div");
+        playerLabel.id = "player_label_" + ID;
+        playerLabel.innerText = players.getName(ID);
+        playerElement.append(playerLabel)
 
         let videoElement = document.createElement("video");
-        videoElement.id = "video_" + newPlayerID;
+        videoElement.id = "video_" + ID;
         videoElement.autoplay = "autoplay";
         videoElement.width = "300";
         videoElement.style = "background-color: black;";
-        document.getElementById("players").append(videoElement);
+        playerElement.append(videoElement);
 
-        if (newPlayerID === myPlayerID) {
+        if (ID === myPlayerID) {
             const constraints = {
                 'video': true,
                 'audio': true
@@ -263,35 +276,41 @@
                 });
 
         } else {
-            players.setMediaStream(newPlayerID, new MediaStream());
+            players.setMediaStream(ID, new MediaStream());
             videoElement.src = "/images/loading-gulasch.mp4";
         }
 
-        let toggleVideoOff = document.createElement("button");
-        toggleVideoOff.id = "toggle_video_off_" + newPlayerID;
-        toggleVideoOff.innerText = "Disable Video";
-        toggleVideoOff.addEventListener('click', () => players.disableVideo(newPlayerID))
-        document.getElementById("players").append(toggleVideoOff);
-        let toggleVideoOn = document.createElement("button");
-        toggleVideoOn.id = "toggle_video_on_" + newPlayerID;
-        toggleVideoOn.innerText = "Disable Video";
-        toggleVideoOn.addEventListener('click', () => players.disableVideo(newPlayerID))
-        document.getElementById("players").append(toggleVideoOn);
+        let toggleVideo = document.createElement("input");
+        toggleVideo.type = "checkbox"
+        toggleVideo.checked = "checked"
+        toggleVideo.value = "1"
+        toggleVideo.id = "toggle_video_" + ID;
+        toggleVideo.class = "player-media-controls--video-toggle";
+        toggleVideo.addEventListener('change', (e) => e.target.checked ? players.enableVideo(ID) : players.disableVideo(ID))
+        playerElement.append(toggleVideo);
+
+        let toggleAudio = document.createElement("input");
+        toggleAudio.type = "checkbox"
+        toggleAudio.checked = "checked"
+        toggleAudio.value = "1"
+        toggleAudio.id = "toggle_audio_" + ID;
+        toggleVideo.class = "player-media-controls--audio-toggle";
+        toggleAudio.addEventListener('change', (e) => e.target.checked ? players.enableAudio(ID) : players.disableAudio(ID))
+        playerElement.append(toggleAudio);
+
+        document.getElementById("players").append(playerElement);
     }
 
     function playerLeft(ID) {
         players.removePlayer(ID);
         document.getElementById("player_" + ID).remove();
-        document.getElementById("video_" + ID).remove();
-        document.getElementById("toggle_video_on_" + ID).remove();
-        document.getElementById("toggle_video_off_" + ID).remove();
     }
 
     function updateName(ID, newName) {
         let name = players.getName(ID);
         if (name !== newName) {
             players.setName(ID, newName);
-            document.getElementById("player_" + ID).innerText = newName;
+            document.getElementById("player_label_" + ID).innerText = newName;
         }
     }
 
