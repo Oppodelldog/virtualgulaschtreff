@@ -25,6 +25,7 @@
         }
 
         .player-video {
+            background-color: black;
         }
 
         .player-name {
@@ -77,6 +78,7 @@
 <div id="players">
 
 </div>
+<!--suppress JSUnresolvedVariable -->
 <script type="application/javascript">
 
     class Player {
@@ -131,10 +133,6 @@
             return ids;
         }
 
-        hasPlayers() {
-            return this.getIDs().length > 0;
-        }
-
         setPeerConnection(id, webRtcConnection) {
             this.get(id).webRtcConnection = webRtcConnection;
         }
@@ -172,11 +170,16 @@
         }
 
         hasPeerConnection(id) {
-            return this.getPeerConnection(id) !== undefined;
+            return this.getPeerConnection(id) !== undefined && this.getPeerConnection(id) !== null;
         }
     }
 
-    const names = ["Sioux", "Martguerita", "Janel", "Ruthy", "Arlene", "Pauly", "Flo", "Scarlett", "Gypsy", "Adel", "Edeline", "Willi", "Arlyne", "Starlin", "Tania", "Hildegaard", "Aveline", "Appolonia", "Linet", "Arabel", "Anjela", "Tyne", "Caresse", "Kylynn", "Lorenza", "Rhianon", "Nonna", "Joni", "Rachelle", "Katusha", "Sharia", "Catherine", "Kerri", "Aili", "Andra", "Margy", "Cindi", "Fanchette", "Dara", "Brittaney", "Corie", "Gilbertine"];
+    const WHATS_YOUR_NAME = "WHATS_YOUR_NAME";
+    const STATE_UPDATE = "STATE_UPDATE";
+    const MY_NAME_IS = 'MY_NAME_IS';
+    const WEB_RTC_OFFER = 'WEB_RTC_OFFER';
+    const WEB_RTC_ANSWER = 'WEB_RTC_ANSWER';
+    const WEB_RTC_ICE_CANDIDATE = 'WEB_RTC_ICE_CANDIDATE';
 
     const wsUrl = 'wss://' + location.host + '/ws/gt';
     let players = new Players();
@@ -186,6 +189,7 @@
     window.onerror = errorHandler;
 
     function getRandomName() {
+        const names = ["Sioux", "Martguerita", "Janel", "Ruthy", "Arlene", "Pauly", "Flo", "Scarlett", "Gypsy", "Adel", "Edeline", "Willi", "Arlyne", "Starlin", "Tania", "Hildegaard", "Aveline", "Appolonia", "Linet", "Arabel", "Anjela", "Tyne", "Caresse", "Kylynn", "Lorenza", "Rhianon", "Nonna", "Joni", "Rachelle", "Katusha", "Sharia", "Catherine", "Kerri", "Aili", "Andra", "Margy", "Cindi", "Fanchette", "Dara", "Brittaney", "Corie", "Gilbertine"];
         return names[Math.floor(Math.random() * Math.floor(names.length))];
     }
 
@@ -194,17 +198,18 @@
         return false;
     }
 
-    async function makeCall(calledPlayerID) {
+    function createPeerConnection(playerID) {
         const configuration = {'iceServers': [{'urls': 'stun:stun1.l.google.com:19302'}]};
         const peerConnection = new RTCPeerConnection(configuration);
         peerConnection.addEventListener('icecandidate', event => {
+
             if (event.candidate) {
                 const iceCandidateMessage = {
-                    'Type': 'WEB_RTC_ICE_CANDIDATE',
-                    'Payload': {'RemotePlayerID': calledPlayerID, 'IceCandidate': event.candidate}
+                    'Type': WEB_RTC_ICE_CANDIDATE,
+                    'Payload': {'RemotePlayerID': playerID, 'IceCandidate': event.candidate}
                 };
                 try {
-                    console.log("sending ice candidate");
+                    console.log("sending ice candidate", event.candidate.address, event.candidate.protocol, event.candidate.relatedAddress, event.candidate.relatedPort);
                     ws.send(JSON.stringify(iceCandidateMessage));
                 } catch (e) {
                     console.log("error sending ice candidate:", e)
@@ -212,23 +217,30 @@
             }
         });
         peerConnection.addEventListener('connectionstatechange', event => {
-            console.log("connectionstatechange", event);
+            // noinspection JSUnresolvedVariable
+            console.log("connectionstatechange -> ", event.currentTarget.connectionState);
             if (peerConnection.connectionState === 'connected') {
                 console.log("Peers connected!");
             }
-        });
-        peerConnection.addEventListener('track', async (event) => {
-            let playerMediaStream = players.getMediaStream(calledPlayerID);
-            playerMediaStream.addTrack(event.track, playerMediaStream);
-            document.getElementById("video_" + calledPlayerID).srcObject = playerMediaStream;
         });
 
         let myMediaStream = players.getMediaStream(myPlayerID);
         myMediaStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, myMediaStream);
         });
+        peerConnection.addEventListener('track', async (event) => {
+            let playerMediaStream = players.getMediaStream(playerID);
+            playerMediaStream.addTrack(event.track, playerMediaStream);
+            document.getElementById("video_" + playerID).srcObject = playerMediaStream;
+        });
 
-        var mediaConstraints = {
+        return peerConnection;
+    }
+
+    async function makeCall(calledPlayerID) {
+        let peerConnection = createPeerConnection(calledPlayerID);
+
+        let mediaConstraints = {
             'offerToReceiveAudio': true,
             'offerToReceiveVideo': true
         };
@@ -237,50 +249,23 @@
 
 
         const offerMessage = {
-            'Type': 'WEB_RTC_OFFER',
+            'Type': WEB_RTC_OFFER,
             'Payload': {'RemotePlayerID': calledPlayerID, 'Offer': offer}
         };
+
         ws.send(JSON.stringify(offerMessage));
         players.setPeerConnection(calledPlayerID, peerConnection);
     }
 
     async function answerCall(callingPlayerID, offer) {
-        const configuration = {'iceServers': [{'urls': 'stun:stun1.l.google.com:19302'}]};
-        const peerConnection = new RTCPeerConnection(configuration);
-        peerConnection.addEventListener('icecandidate', event => {
-            if (event.candidate) {
-                const iceCandidateMessage = {
-                    'Type': 'WEB_RTC_ICE_CANDIDATE',
-                    'Payload': {'RemotePlayerID': callingPlayerID, 'IceCandidate': event.candidate}
-                };
-                try {
-                    console.log("also sending ice candidate");
-                    ws.send(JSON.stringify(iceCandidateMessage));
-                } catch (e) {
-                    console.log("error sending ice candidate:", e)
-                }
-            }
-        });
-        peerConnection.addEventListener('connectionstatechange', event => {
-            console.log("connectionstatechange", event);
-            if (peerConnection.connectionState === 'connected') {
-                console.log("Peers connected!");
-            }
-        });
-        let myMediaStream = players.getMediaStream(myPlayerID);
-        myMediaStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, myMediaStream);
-        });
-        peerConnection.addEventListener('track', async (event) => {
-            let playerMediaStream = players.getMediaStream(callingPlayerID);
-            playerMediaStream.addTrack(event.track, playerMediaStream);
-            document.getElementById("video_" + callingPlayerID).srcObject = playerMediaStream;
-        });
+        let peerConnection = createPeerConnection(callingPlayerID);
+
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
+
         const answerMessage = {
-            'Type': 'WEB_RTC_ANSWER',
+            'Type': WEB_RTC_ANSWER,
             'Payload': {'RemotePlayerID': callingPlayerID, 'Answer': answer}
         };
         ws.send(JSON.stringify(answerMessage));
@@ -296,6 +281,10 @@
     async function addIceCandidate(remotePlayerID, iceCandidate) {
         try {
             console.log("adding ice candidate");
+            if (!players.hasPeerConnection(remotePlayerID)) {
+                console.warn(`no peer connection found for ${remotePlayerID}`);
+                return;
+            }
             await players.getPeerConnection(remotePlayerID).addIceCandidate(iceCandidate);
         } catch (e) {
             console.error('Error adding received ice candidate', e);
@@ -339,9 +328,8 @@
         let videoElement = document.createElement("video");
         videoElement.id = "video_" + ID;
         videoElement.className = "player-video";
-        videoElement.autoplay = "autoplay";
-        videoElement.width = "300";
-        videoElement.style = "background-color: black;";
+        videoElement.autoplay = true;
+        videoElement.width = 300;
         playerElement.append(videoElement);
 
         if (ID === myPlayerID) {
@@ -352,11 +340,11 @@
             navigator.mediaDevices.getUserMedia(constraints)
                 .then(stream => {
                     players.setMediaStream(myPlayerID, stream);
-                    let myStream = players.getMediaStream(myPlayerID);
                     videoElement.srcObject = players.getMediaStream(myPlayerID);
                     videoElement.muted = true;
                 })
                 .catch(error => {
+                    // TODO: handle error
                     console.error('Error accessing media devices.', error);
                 });
             let rename = () => askForUsername('Choose a different name', players.getName(myPlayerID))
@@ -377,6 +365,7 @@
 
     function playerLeft(ID) {
         players.removePlayer(ID);
+        console.log(`remove player ${ID}`)
         document.getElementById("player_" + ID).remove();
     }
 
@@ -390,7 +379,7 @@
 
     function updatePlayers(Players) {
         // check for new players
-        for (ID in Players) {
+        for (let ID in Players) {
             if (!Players.hasOwnProperty(ID)) {
                 continue;
             }
@@ -407,7 +396,10 @@
 
         // check for removed players
         let playerIDs = players.getIDs();
-        for (key in playerIDs) {
+        for (let key in playerIDs) {
+            if (!playerIDs.hasOwnProperty(key)) {
+                continue
+            }
             let id = playerIDs[key];
             if (id in Players) {
 
@@ -424,16 +416,15 @@
             userInputNickName = prompt(message, originalName);
         }
 
-        const answer = {Type: 'MY_NAME_IS', 'Payload': {'Name': userInputNickName}};
+        const answer = {Type: MY_NAME_IS, 'Payload': {'Name': userInputNickName}};
         ws.send(JSON.stringify(answer));
     }
 
     function startGame() {
         ws = new WebSocket(wsUrl);
-        var messageBuffer = "";
-        ws.onopen = function (evt) {
-            console.log("opened channel");
-        };
+        let messageBuffer = "";
+        ws.onopen = () => console.log("opened websocket");
+
         ws.onmessage = function (evt) {
             const messages = [];
             let buffer = "";
@@ -455,27 +446,29 @@
                 const message = messages[k];
                 const data = JSON.parse(message);
                 switch (data.Type) {
-                    case "WHATS_YOUR_NAME":
+                    case WHATS_YOUR_NAME:
                         myPlayerID = data.Payload.ID;
                         askForUsername(data.Payload.Message, getRandomName());
                         break;
 
-                    case "STATE_UPDATE":
+                    case STATE_UPDATE:
                         let Players = data.Payload.Players;
-
                         updatePlayers(Players);
-
                         break;
-                    case "WEB_RTC_OFFER":
-                        console.log("received an offer from " + data.Payload.RemotePlayerID, data.Payload.Offer);
+
+                    case WEB_RTC_OFFER:
+                        console.log("received an offer from " + data.Payload.RemotePlayerID);
                         answerCall(data.Payload.RemotePlayerID, data.Payload.Offer);
                         break;
-                    case "WEB_RTC_ANSWER":
-                        console.log("received an answer from " + data.Payload.RemotePlayerID, data.Payload.Answer);
+
+                    case WEB_RTC_ANSWER:
+                        console.log("received an answer from " + data.Payload.RemotePlayerID);
                         establishConnection(data.Payload.RemotePlayerID, data.Payload.Answer);
                         break;
-                    case "WEB_RTC_ICE_CANDIDATE":
+
+                    case WEB_RTC_ICE_CANDIDATE:
                         addIceCandidate(data.Payload.RemotePlayerID, data.Payload.IceCandidate)
+                        break;
                 }
             }
             ws.onclose = function (evt) {
