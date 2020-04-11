@@ -12,8 +12,8 @@
 
     class Player {
         name = 'unnamed';
-        webRtcConnection = null;
-        mediaStream = null;
+        webRtcConnection = undefined;
+        mediaStream = undefined;
 
         dispose() {
             console.log("dispose")
@@ -82,8 +82,28 @@
             return this.get(id).mediaStream;
         }
 
-        setMediaStream(newPlayerID, mediaStream) {
-            this.get(newPlayerID).mediaStream = mediaStream;
+        setMediaStream(id, mediaStream) {
+            this.get(id).mediaStream = mediaStream;
+        }
+
+        disableVideo(id) {
+            this.getMediaStream(id).getVideoTracks().forEach(track => track.enabled = false);
+        }
+
+        enableVideo(id) {
+            this.getMediaStream(id).getVideoTracks().forEach(track => track.enabled = true);
+        }
+
+        disableAudio(id) {
+            this.getMediaStream(id).getAudioTracks().forEach(track => track.enabled = false);
+        }
+
+        enableAudio(id) {
+            this.getMediaStream(id).getAudioTracks().forEach(track => track.enabled = true);
+        }
+
+        hasPeerConnection(id) {
+            return this.getPeerConnection(id) !== undefined;
         }
     }
 
@@ -107,7 +127,6 @@
 
     async function makeCall(calledPlayerID) {
         const configuration = {'iceServers': [{'urls': 'stun:stun1.l.google.com:19302'}]};
-        //const configuration = {'iceServers': []};
         const peerConnection = new RTCPeerConnection(configuration);
         peerConnection.addEventListener('icecandidate', event => {
             if (event.candidate) {
@@ -188,7 +207,7 @@
             playerMediaStream.addTrack(event.track, playerMediaStream);
             document.getElementById("video_" + callingPlayerID).srcObject = playerMediaStream;
         });
-        peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         const answerMessage = {
@@ -227,21 +246,45 @@
         videoElement.style = "background-color: black;";
         document.getElementById("players").append(videoElement);
 
-
         if (newPlayerID === myPlayerID) {
-            setupMyMedia();
-            videoElement.srcObject = players.getMediaStream(myPlayerID);
-            videoElement.muted = true;
+            const constraints = {
+                'video': true,
+                'audio': true
+            };
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    players.setMediaStream(myPlayerID, stream);
+                    let myStream = players.getMediaStream(myPlayerID);
+                    videoElement.srcObject = players.getMediaStream(myPlayerID);
+                    videoElement.muted = true;
+                })
+                .catch(error => {
+                    console.error('Error accessing media devices.', error);
+                });
+
         } else {
             players.setMediaStream(newPlayerID, new MediaStream());
             videoElement.src = "/images/loading-gulasch.mp4";
         }
+
+        let toggleVideoOff = document.createElement("button");
+        toggleVideoOff.id = "toggle_video_off_" + newPlayerID;
+        toggleVideoOff.innerText = "Disable Video";
+        toggleVideoOff.addEventListener('click', () => players.disableVideo(newPlayerID))
+        document.getElementById("players").append(toggleVideoOff);
+        let toggleVideoOn = document.createElement("button");
+        toggleVideoOn.id = "toggle_video_on_" + newPlayerID;
+        toggleVideoOn.innerText = "Disable Video";
+        toggleVideoOn.addEventListener('click', () => players.disableVideo(newPlayerID))
+        document.getElementById("players").append(toggleVideoOn);
     }
 
     function playerLeft(ID) {
         players.removePlayer(ID);
         document.getElementById("player_" + ID).remove();
         document.getElementById("video_" + ID).remove();
+        document.getElementById("toggle_video_on_" + ID).remove();
+        document.getElementById("toggle_video_off_" + ID).remove();
     }
 
     function updateName(ID, newName) {
@@ -263,6 +306,9 @@
             } else {
                 players.setName(ID, Players[ID]);
                 newPlayer(ID)
+                if (!players.hasPeerConnection(ID)) {
+                    makeCall(ID);
+                }
             }
         }
 
@@ -278,22 +324,6 @@
             }
         }
     }
-
-
-    function setupMyMedia() {
-        const constraints = {
-            'video': true,
-            'audio': true
-        };
-        navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                players.setMediaStream(myPlayerID, stream);
-            })
-            .catch(error => {
-                console.error('Error accessing media devices.', error);
-            });
-    }
-
 
     function startGame() {
         ws = new WebSocket(wsUrl);
@@ -335,14 +365,9 @@
 
                     case "STATE_UPDATE":
                         let Players = data.Payload.Players;
-                        if (!players.hasPlayers()) {
-                            for (ID in Players) {
-                                if (ID !== myPlayerID) {
-                                    makeCall(ID);
-                                }
-                            }
-                        }
+
                         updatePlayers(Players);
+
                         break;
                     case "WEB_RTC_OFFER":
                         console.log("received an offer from " + data.Payload.RemotePlayerID, data.Payload.Offer);
@@ -368,6 +393,7 @@
             };
         };
     }
+
     startGame();
 
 </script>
