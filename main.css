@@ -1,0 +1,173 @@
+* {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    width: 100%;
+    background-color: black;
+}
+
+#hut {
+    z-index: 10;
+    background-size: cover;
+    width: 1600px;
+    height: 962px;
+    position: absolute;
+    background-image: url("hut-small.png");
+}
+
+#players {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.player {
+    position: absolute;
+}
+
+.player:first-child {
+    left: 467px;
+    top: 58px;
+}
+
+.player:first-child + .player {
+    left: 762px;
+    top: 57px;
+}
+
+.player-video {
+    background-color: black;
+    height: 305px;
+    min-width: 272px;
+}
+
+.player-name {
+    position: absolute;
+    top: -22px;
+    left: 0;
+    padding: 4px;
+    /* background-color: rgba(255, 255, 255, 0.5); */
+    color: white;
+    z-index: 11;
+    font-size: 43pt;
+}
+
+.player-controls-toggle {
+    width: 36px;
+    height: 36px;
+    background: #fafafa69;
+    display: block;
+    border: 1px solid #7e7d7d;
+    text-align: center;
+}
+
+.player-controls-toggle-checkbox {
+    display: none;
+}
+
+.player-controls-toggle-button {
+    font-size: 22pt;
+    color: #ffffff42;
+}
+
+.player-controls-toggle-checkbox:checked + .player-controls-toggle-button {
+    color: #ffffffd1;
+}
+
+.player:nth-child(1n+3) {
+    display: none;
+}
+
+.player:first-child .player-name {
+    left: -273px;
+}
+
+.player:first-child .player-name:after {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    background-image: url("Neon 003_6-01.png");
+    width: 340px;
+    height: 340px;
+    left: -102px;
+    top: -40px;
+    background-size: contain;
+    transform: rotate(13deg);
+}
+
+.player:first-child .player-controls-toggle-video {
+    position: absolute;
+    top: 215px;
+    left: -81px;
+    z-index: 12;
+}
+
+.player:first-child .player-controls-toggle-button-video:after {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    background-image: url("rolladen.jpg");
+    width: 270px;
+    height: 297px;
+    top: -216px;
+    left: 79px;
+}
+
+.player:first-child .player-controls-toggle-checkbox:checked + .player-controls-toggle-button-video:after {
+    display: none;
+}
+
+
+.player:first-child .player-controls-toggle-audio {
+    position: absolute;
+    top: 167px;
+    z-index: 12;
+    left: -81px;
+}
+
+.player:first-child + .player .player-name {
+    left: +423px;
+}
+
+.player:first-child + .player .player-name:after {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    transform: scaleX(-1) rotate(90deg);
+    background-image: url("Neon 003_3-01.png");
+    width: 200px;
+    height: 200px;
+    left: -56px;
+    top: 44px;
+    background-size: contain;
+}
+
+.player:first-child + .player .player-controls-toggle-video {
+    position: absolute;
+    top: 215px;
+    left: 320px;
+    z-index: 12;
+}
+
+.player:first-child + .player .player-controls-toggle-button-video:after {
+    content: "";
+    display: inline-block;
+    position: absolute;
+    background-image: url("rolladen.jpg");
+    width: 289px;
+    height: 309px;
+    top: -216px;
+    left: -321px;
+}
+
+.player:first-child + .player .player-controls-toggle-checkbox:checked + .player-controls-toggle-button-video:after {
+    display: none;
+}
+
+.player:first-child + .player .player-controls-toggle-audio {
+    position: absolute;
+    top: 167px;
+    left: 320px;
+    z-index: 12;
+}
