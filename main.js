@@ -3,14 +3,12 @@
 const WHATS_YOUR_NAME = "WHATS_YOUR_NAME";
 const STATE_UPDATE = "STATE_UPDATE";
 const MY_NAME_IS = 'MY_NAME_IS';
-const WEB_RTC_OFFER = 'WEB_RTC_OFFER';
-const WEB_RTC_ANSWER = 'WEB_RTC_ANSWER';
-const WEB_RTC_ICE_CANDIDATE = 'WEB_RTC_ICE_CANDIDATE';
 
 const wsUrl = 'wss://' + location.host + '/ws/gt';
 let players = new Players();
 let myPlayerID = null;
 let ws = null;
+let webrtc = null;
 
 window.onerror = errorHandler;
 
@@ -24,97 +22,8 @@ function errorHandler(errorMsg, url, lineNumber) {
     return false;
 }
 
-function createPeerConnection(playerID) {
-    const configuration = {'iceServers': [{'urls': 'stun:stun1.l.google.com:19302'}]};
-    const peerConnection = new RTCPeerConnection(configuration);
-    peerConnection.addEventListener('icecandidate', event => {
-
-        if (event.candidate) {
-            const iceCandidateMessage = {
-                'Type': WEB_RTC_ICE_CANDIDATE,
-                'Payload': {'RemotePlayerID': playerID, 'IceCandidate': event.candidate}
-            };
-            try {
-                console.log("sending ice candidate", event.candidate.address, event.candidate.protocol, event.candidate.relatedAddress, event.candidate.relatedPort);
-                ws.send(JSON.stringify(iceCandidateMessage));
-            } catch (e) {
-                console.log("error sending ice candidate:", e)
-            }
-        }
-    });
-    peerConnection.addEventListener('connectionstatechange', event => {
-        // noinspection JSUnresolvedVariable
-        console.log("connectionstatechange -> ", event.currentTarget.connectionState);
-        if (peerConnection.connectionState === 'connected') {
-            console.log("Peers connected!");
-        }
-    });
-
-    let myMediaStream = players.getMediaStream(myPlayerID);
-    myMediaStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, myMediaStream);
-    });
-    peerConnection.addEventListener('track', async (event) => {
-        let playerMediaStream = players.getMediaStream(playerID);
-        playerMediaStream.addTrack(event.track, playerMediaStream);
-        document.getElementById("video_" + playerID).srcObject = playerMediaStream;
-    });
-
-    return peerConnection;
-}
-
-async function makeCall(calledPlayerID) {
-    let peerConnection = createPeerConnection(calledPlayerID);
-
-    let mediaConstraints = {
-        'offerToReceiveAudio': true,
-        'offerToReceiveVideo': true
-    };
-    const offer = await peerConnection.createOffer(mediaConstraints);
-    await peerConnection.setLocalDescription(offer);
-
-
-    const offerMessage = {
-        'Type': WEB_RTC_OFFER,
-        'Payload': {'RemotePlayerID': calledPlayerID, 'Offer': offer}
-    };
-
-    ws.send(JSON.stringify(offerMessage));
-    players.setPeerConnection(calledPlayerID, peerConnection);
-}
-
-async function answerCall(callingPlayerID, offer) {
-    let peerConnection = createPeerConnection(callingPlayerID);
-
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-
-    const answerMessage = {
-        'Type': WEB_RTC_ANSWER,
-        'Payload': {'RemotePlayerID': callingPlayerID, 'Answer': answer}
-    };
-    ws.send(JSON.stringify(answerMessage));
-    players.setPeerConnection(callingPlayerID, peerConnection);
-}
-
-async function establishConnection(remotePlayerID, answer) {
-    const remoteDesc = new RTCSessionDescription(answer);
-    await players.getPeerConnection(remotePlayerID).setRemoteDescription(remoteDesc);
-    console.log("peer pairing done")
-}
-
-async function addIceCandidate(remotePlayerID, iceCandidate) {
-    try {
-        console.log("adding ice candidate");
-        if (!players.hasPeerConnection(remotePlayerID)) {
-            console.warn(`no peer connection found for ${remotePlayerID}`);
-            return;
-        }
-        await players.getPeerConnection(remotePlayerID).addIceCandidate(iceCandidate);
-    } catch (e) {
-        console.error('Error adding received ice candidate', e);
-    }
+function setVideoStream(playerID, stream) {
+    document.getElementById("video_" + playerID).srcObject = stream;
 }
 
 function createToggleButton(ID, buttonClass, iconClass, changeCallback) {
@@ -140,6 +49,16 @@ function createToggleButton(ID, buttonClass, iconClass, changeCallback) {
     return toggleVideoDiv;
 }
 
+function callAllPlayers() {
+    let playerIDs = players.getIDs();
+    for (k in playerIDs) {
+        let playerID = playerIDs[k];
+        if (!players.hasPeerConnection(playerID)) {
+            webrtc.makeCall(playerID);
+        }
+    }
+}
+
 function newPlayer(ID) {
     let playerElement = document.createElement("div");
     playerElement.id = "player_" + ID;
@@ -162,11 +81,14 @@ function newPlayer(ID) {
             'video': true,
             'audio': true
         };
+        let self = this;
         navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 players.setMediaStream(myPlayerID, stream);
                 videoElement.srcObject = players.getMediaStream(myPlayerID);
                 videoElement.muted = true;
+                webrtc = new WebRTC(stream, new SignalingAdapter(ws), players, this.setVideoStream);
+                self.callAllPlayers();
             })
             .catch(error => {
                 // TODO: handle error
@@ -213,8 +135,8 @@ function updatePlayers(Players) {
         } else {
             players.setName(ID, Players[ID]);
             newPlayer(ID)
-            if (!players.hasPeerConnection(ID)) {
-                makeCall(ID);
+            if (webrtc!==null) {
+                webrtc.makeCall(ID);
             }
         }
     }
@@ -281,18 +203,18 @@ function startGame() {
                     updatePlayers(Players);
                     break;
 
-                case WEB_RTC_OFFER:
+                case SignalingAdapter.WEB_RTC_OFFER:
                     console.log("received an offer from " + data.Payload.RemotePlayerID);
-                    answerCall(data.Payload.RemotePlayerID, data.Payload.Offer);
+                    webrtc.answerCall(data.Payload.RemotePlayerID, data.Payload.Offer);
                     break;
 
-                case WEB_RTC_ANSWER:
+                case SignalingAdapter.WEB_RTC_ANSWER:
                     console.log("received an answer from " + data.Payload.RemotePlayerID);
-                    establishConnection(data.Payload.RemotePlayerID, data.Payload.Answer);
+                    webrtc.establishConnection(data.Payload.RemotePlayerID, data.Payload.Answer);
                     break;
 
-                case WEB_RTC_ICE_CANDIDATE:
-                    addIceCandidate(data.Payload.RemotePlayerID, data.Payload.IceCandidate)
+                case SignalingAdapter.WEB_RTC_ICE_CANDIDATE:
+                    webrtc.addIceCandidate(data.Payload.RemotePlayerID, data.Payload.IceCandidate)
                     break;
             }
         }
